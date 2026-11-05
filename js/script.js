@@ -1,10 +1,8 @@
 // NASA Space Explorer
 // Uses NASA's current APOD API
 
-const API_KEY = "DEMO_KEY";
 const API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic/";
 
-// Page elements
 const startInput = document.getElementById("startDate");
 const endInput = document.getElementById("endDate");
 const getImagesButton = document.getElementById("getImages");
@@ -16,19 +14,16 @@ const modalDetails = document.getElementById("modalDetails");
 const closeModalButton = document.getElementById("closeModal");
 const factText = document.getElementById("factText");
 
-// Check required HTML elements
 if (!startInput || !endInput || !getImagesButton || !gallery) {
   throw new Error("A required HTML element is missing. Check your element IDs.");
 }
 
-// Set up date inputs
 if (typeof setupDateInputs === "function") {
   setupDateInputs(startInput, endInput);
 } else {
   console.warn("dateRange.js was not loaded.");
 }
 
-// Random space facts
 const spaceFacts = [
   "A day on Venus is longer than its year.",
   "Neutron stars can spin hundreds of times per second.",
@@ -40,7 +35,6 @@ const spaceFacts = [
   "Footprints left on the Moon can remain for millions of years."
 ];
 
-// Display a random space fact
 function displayRandomFact() {
   if (!factText) return;
 
@@ -48,7 +42,6 @@ function displayRandomFact() {
   factText.textContent = spaceFacts[randomIndex];
 }
 
-// Calculate the number of days between dates
 function daysBetween(startDate, endDate) {
   const start = new Date(startDate + "T00:00:00Z");
   const end = new Date(endDate + "T00:00:00Z");
@@ -56,7 +49,29 @@ function daysBetween(startDate, endDate) {
   return Math.round((end - start) / 86400000);
 }
 
-// Fetch NASA images
+function eachDate(startDate, endDate) {
+  const dates = [];
+  const cursor = new Date(startDate + "T00:00:00Z");
+  const end = new Date(endDate + "T00:00:00Z");
+
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function plainText(html) {
+  const holder = document.createElement("div");
+  holder.innerHTML = html || "";
+  return holder.textContent.replace(/\s+/g, " ").trim();
+}
+
+function isVideo(item) {
+  return item.media_type === "video" || item.media_type === "iframe";
+}
+
 async function getSpaceImages() {
   const startDate = startInput.value;
   const endDate = endInput.value;
@@ -66,45 +81,32 @@ async function getSpaceImages() {
     return;
   }
 
-  const difference = daysBetween(startDate, endDate);
-
-  if (difference !== 8) {
+  if (daysBetween(startDate, endDate) !== 8) {
     alert("Please select exactly 9 consecutive days.");
     return;
   }
 
   if (loading) loading.hidden = false;
 
-  gallery.innerHTML = "<p>Loading NASA space images...</p>";
+  gallery.innerHTML = "";
   getImagesButton.disabled = true;
 
   try {
-    const params = new URLSearchParams({
-      api_key: API_KEY,
-      start_date: startDate,
-      end_date: endDate
-    });
+    const images = await Promise.all(
+      eachDate(startDate, endDate).map(async (date) => {
+        const id = date.slice(2).replaceAll("-", "");
+        const response = await fetch(API_URL + id);
 
-    const response = await fetch(API_URL + "?" + params.toString());
+        if (!response.ok) {
+          throw new Error("NASA API error: " + response.status);
+        }
 
-    if (!response.ok) {
-      throw new Error("NASA API error: " + response.status);
-    }
-
-    const responseData = await response.json();
-
-    const images = Array.isArray(responseData)
-      ? responseData
-      : [responseData];
-
-    if (images.length !== 9) {
-      throw new Error("NASA did not return all 9 entries.");
-    }
+        return response.json();
+      })
+    );
 
     images.sort((a, b) => a.date.localeCompare(b.date));
-
     displayGallery(images);
-
   } catch (error) {
     console.error("NASA API error:", error);
 
@@ -115,14 +117,12 @@ async function getSpaceImages() {
         <p>Please try again later.</p>
       </div>
     `;
-
   } finally {
     if (loading) loading.hidden = true;
     getImagesButton.disabled = false;
   }
 }
 
-// Create gallery cards
 function displayGallery(images) {
   gallery.innerHTML = "";
 
@@ -130,35 +130,22 @@ function displayGallery(images) {
     const card = document.createElement("article");
     card.className = "gallery-item";
 
-    const imageUrl = item.hdurl;
-
-    if (item.media_type === "image" && imageUrl) {
+    if (item.hdurl) {
       const image = document.createElement("img");
 
-      image.src = imageUrl;
-      image.alt = item.title || "NASA space photograph";
+      image.src = item.hdurl;
+      image.alt = item.alt || item.title || "NASA space photograph";
       image.loading = "lazy";
 
       image.onerror = () => {
-        image.replaceWith(
-          createPreview("Image could not be displayed")
-        );
+        image.replaceWith(createPreview("Image could not be displayed"));
       };
 
       card.appendChild(image);
-
-    } else if (
-      item.media_type === "video" ||
-      item.media_type === "iframe"
-    ) {
-      card.appendChild(
-        createPreview("▶ Video / Interactive Entry")
-      );
-
+    } else if (isVideo(item)) {
+      card.appendChild(createPreview("▶ Video entry"));
     } else {
-      card.appendChild(
-        createPreview("Image preview unavailable")
-      );
+      card.appendChild(createPreview("Image preview unavailable"));
     }
 
     const title = document.createElement("h3");
@@ -178,7 +165,6 @@ function displayGallery(images) {
   });
 }
 
-// Create preview messages
 function createPreview(message) {
   const preview = document.createElement("div");
 
@@ -188,15 +174,10 @@ function createPreview(message) {
   return preview;
 }
 
-// Open image details
 function openModal(item) {
   if (!modal || !modalDetails) {
     if (item.permalink || item.url) {
-      window.open(
-        item.permalink || item.url,
-        "_blank",
-        "noopener,noreferrer"
-      );
+      window.open(item.permalink || item.url, "_blank", "noopener,noreferrer");
     }
     return;
   }
@@ -212,27 +193,23 @@ function openModal(item) {
   modalDetails.appendChild(title);
   modalDetails.appendChild(date);
 
-  if (item.media_type === "image" && item.hdurl) {
+  if (item.hdurl) {
     const image = document.createElement("img");
 
     image.src = item.hdurl;
-    image.alt = item.title || "NASA space photograph";
+    image.alt = item.alt || item.title || "NASA space photograph";
 
     modalDetails.appendChild(image);
+  }
 
-  } else {
+  if (isVideo(item)) {
     const message = document.createElement("p");
-
-    message.textContent =
-      "This APOD entry is a video or interactive item.";
-
+    message.textContent = "This APOD entry is a video. Use the NASA link below to play it.";
     modalDetails.appendChild(message);
   }
 
   const explanation = document.createElement("p");
-  explanation.textContent =
-    item.explanation || "No explanation is available.";
-
+  explanation.textContent = plainText(item.explanation) || "No explanation is available.";
   modalDetails.appendChild(explanation);
 
   const articleUrl = item.permalink || item.url;
@@ -241,7 +218,7 @@ function openModal(item) {
     const link = document.createElement("a");
 
     link.href = articleUrl;
-    link.textContent = "View this entry on NASA";
+    link.textContent = isVideo(item) ? "Play this video on NASA" : "View this entry on NASA";
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.className = "video-link";
@@ -253,7 +230,6 @@ function openModal(item) {
   modal.setAttribute("aria-hidden", "false");
 }
 
-// Close modal
 function hideModal() {
   if (!modal) return;
 
@@ -273,15 +249,11 @@ if (modal) {
   });
 }
 
-// Close modal with Escape key
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     hideModal();
   }
 });
 
-// Get images button
 getImagesButton.addEventListener("click", getSpaceImages);
-
-// Display random space fact
 displayRandomFact();
