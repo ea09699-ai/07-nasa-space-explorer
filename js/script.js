@@ -1,7 +1,7 @@
 // NASA Space Explorer
 // Uses NASA's current APOD API
 
-const API_URL = "https://api.nasa.gov/planetary/apod";
+const API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic";
 
 const startInput = document.getElementById("startDate");
 const endInput = document.getElementById("endDate");
@@ -79,12 +79,10 @@ async function getSpaceImages() {
   getImagesButton.disabled = true;
 
   try {
-    const params = new URLSearchParams({
-      api_key: "DEMO_KEY",
-      start_date: startDate,
-      end_date: endDate
-    });
-
+ const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate
+});
     const response = await fetch(API_URL + "?" + params.toString());
 
     if (!response.ok) {
