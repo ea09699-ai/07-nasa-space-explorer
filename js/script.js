@@ -1,7 +1,7 @@
 // NASA Space Explorer
 // Uses NASA's current APOD API
 
-const API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic/";
+const API_URL = "https://api.nasa.gov/planetary/apod";
 
 const startInput = document.getElementById("startDate");
 const endInput = document.getElementById("endDate");
@@ -49,19 +49,6 @@ function daysBetween(startDate, endDate) {
   return Math.round((end - start) / 86400000);
 }
 
-function eachDate(startDate, endDate) {
-  const dates = [];
-  const cursor = new Date(startDate + "T00:00:00Z");
-  const end = new Date(endDate + "T00:00:00Z");
-
-  while (cursor <= end) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return dates;
-}
-
 function plainText(html) {
   const holder = document.createElement("div");
   holder.innerHTML = html || "";
@@ -92,18 +79,24 @@ async function getSpaceImages() {
   getImagesButton.disabled = true;
 
   try {
-    const images = await Promise.all(
-      eachDate(startDate, endDate).map(async (date) => {
-        const id = date.slice(2).replaceAll("-", "");
-        const response = await fetch(API_URL + id);
+    const params = new URLSearchParams({
+      api_key: "DEMO_KEY",
+      start_date: startDate,
+      end_date: endDate
+    });
 
-        if (!response.ok) {
-          throw new Error("NASA API error: " + response.status);
-        }
+    const response = await fetch(API_URL + "?" + params.toString());
 
-        return response.json();
-      })
-    );
+    if (!response.ok) {
+      throw new Error("NASA API error: " + response.status);
+    }
+
+    const responseData = await response.json();
+    const images = Array.isArray(responseData) ? responseData : [responseData];
+
+    if (images.length !== 9) {
+      throw new Error("NASA did not return all 9 entries.");
+    }
 
     images.sort((a, b) => a.date.localeCompare(b.date));
     displayGallery(images);
