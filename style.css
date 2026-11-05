@@ -7,6 +7,9 @@ body {
 }
 
 h1 {
+  font-family: Verdana, sans-serif;
+  font-weight: bold;
+  font-size: 24px;
   color: white;
 }
 
