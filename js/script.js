@@ -132,10 +132,19 @@ function displayGallery(images) {
     if (item.media_type === "image") {
       const image = document.createElement("img");
 
-      // Use the smaller image for thumbnails; hdurl is saved for the modal
-      image.src = item.url || item.hdurl;
+      // Try hdurl first (it works with this endpoint), fall back to url if it fails
+      const primary = item.hdurl || item.url;
+      const backup = item.url && item.url !== primary ? item.url : null;
+
+      image.src = primary;
       image.alt = cleanText(item.title);
-      image.loading = "lazy";
+
+      if (backup) {
+        image.onerror = () => {
+          image.onerror = null; // avoid an infinite loop if the backup fails too
+          image.src = backup;
+        };
+      }
 
       card.appendChild(image);
 
