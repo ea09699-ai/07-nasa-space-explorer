@@ -1,6 +1,6 @@
 // NASA Space Explorer
 const API_KEY = "9mhkgk6M8JM6Hbz77MjwnwzTccHMtf7KtM9fmt9H";
-const API_URL = "https://api.nasa.gov/planetary/apod";
+const API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic";
 
 
 const startInput = document.getElementById("startDate");
