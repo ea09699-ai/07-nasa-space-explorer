@@ -170,8 +170,8 @@ function openModal(item) {
     modalDetails.appendChild(iframe);
   }
 
-  const explanation = document.createElement("p");
-  explanation.textContent = item.explanation;
+  const explanation = document.createElement("div");
+  explanation.innerHTML = item.explanation;
 
   modalDetails.appendChild(explanation);
 
