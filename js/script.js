@@ -2,7 +2,6 @@
 const API_KEY = "9mhkgk6M8JM6Hbz77MjwnwzTccHMtf7KtM9fmt9H";
 const API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic";
 
-
 const startInput = document.getElementById("startDate");
 const endInput = document.getElementById("endDate");
 const getImagesButton = document.getElementById("getImages");
@@ -37,13 +36,27 @@ function showRandomFact() {
 
 showRandomFact();
 
+// Strips HTML tags and decodes entities (e.g. &lt;p&gt; or &#8217;) into clean text.
+function cleanText(html) {
+  const parse = str =>
+    new DOMParser().parseFromString(str || "", "text/html").body.textContent;
+
+  let text = parse(html);
+
+  // If the API double-encoded the HTML, the first pass leaves tags behind.
+  // Run it a second time to strip them.
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    text = parse(text);
+  }
+
+  return text.trim();
+}
+
 function dateDifference(startDate, endDate) {
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  return Math.round(
-    (end - start) / (1000 * 60 * 60 * 24)
-  );
+  return Math.round((end - start) / (1000 * 60 * 60 * 24));
 }
 
 async function getSpaceImages() {
@@ -79,19 +92,30 @@ async function getSpaceImages() {
 
     const data = await response.json();
 
-    data.sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+    if (!Array.isArray(data)) {
+      throw new Error("Unexpected response from NASA.");
+    }
+
+    data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     displayGallery(data);
 
   } catch (error) {
-    gallery.innerHTML = `
-      <div class="placeholder">
-        <p>Unable to load NASA images.</p>
-        <p>${error.message}</p>
-      </div>
-    `;
+    // Build with textContent so the error message is never parsed as HTML
+    gallery.innerHTML = "";
+
+    const box = document.createElement("div");
+    box.className = "placeholder";
+
+    const line1 = document.createElement("p");
+    line1.textContent = "Unable to load NASA images.";
+
+    const line2 = document.createElement("p");
+    line2.textContent = error.message;
+
+    box.appendChild(line1);
+    box.appendChild(line2);
+    gallery.appendChild(box);
   } finally {
     loading.hidden = true;
     getImagesButton.disabled = false;
@@ -108,8 +132,10 @@ function displayGallery(images) {
     if (item.media_type === "image") {
       const image = document.createElement("img");
 
-      image.src = item.hdurl || item.url;
-      image.alt = item.title;
+      // Use the smaller image for thumbnails; hdurl is saved for the modal
+      image.src = item.url || item.hdurl;
+      image.alt = cleanText(item.title);
+      image.loading = "lazy";
 
       card.appendChild(image);
 
@@ -117,13 +143,13 @@ function displayGallery(images) {
       const videoPreview = document.createElement("div");
 
       videoPreview.className = "video-preview";
-      videoPreview.innerHTML = "▶ NASA Video";
+      videoPreview.textContent = "▶ NASA Video";
 
       card.appendChild(videoPreview);
     }
 
     const title = document.createElement("h3");
-    title.textContent = item.title;
+    title.textContent = cleanText(item.title);
 
     const date = document.createElement("p");
     date.textContent = item.date;
@@ -143,7 +169,7 @@ function openModal(item) {
   modalDetails.innerHTML = "";
 
   const title = document.createElement("h2");
-  title.textContent = item.title;
+  title.textContent = cleanText(item.title);
 
   const date = document.createElement("p");
   date.textContent = item.date;
@@ -155,7 +181,7 @@ function openModal(item) {
     const image = document.createElement("img");
 
     image.src = item.hdurl || item.url;
-    image.alt = item.title;
+    image.alt = cleanText(item.title);
 
     modalDetails.appendChild(image);
 
@@ -163,15 +189,24 @@ function openModal(item) {
     const iframe = document.createElement("iframe");
 
     iframe.src = item.url;
-    iframe.width = "100%";
-    iframe.height = "450";
+    iframe.title = cleanText(item.title);
     iframe.allowFullscreen = true;
 
     modalDetails.appendChild(iframe);
+
+    // Some videos can't be embedded, so always offer a direct link too
+    const link = document.createElement("a");
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "video-link";
+    link.textContent = "Open video in a new tab";
+
+    modalDetails.appendChild(link);
   }
 
-  const explanation = document.createElement("div");
-  explanation.innerHTML = item.explanation;
+  const explanation = document.createElement("p");
+  explanation.textContent = cleanText(item.explanation);
 
   modalDetails.appendChild(explanation);
 
@@ -198,7 +233,4 @@ document.addEventListener("keydown", e => {
   }
 });
 
-getImagesButton.addEventListener(
-  "click",
-  getSpaceImages
-);
+getImagesButton.addEventListener("click", getSpaceImages);
