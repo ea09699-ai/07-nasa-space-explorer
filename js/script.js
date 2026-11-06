@@ -52,6 +52,37 @@ function cleanText(html) {
   return text.trim();
 }
 
+// Cleans an image link: trims spaces and forces https
+function safeUrl(url) {
+  return (url || "").trim().replace(/^http:\/\//i, "https://");
+}
+
+// Builds an <img> that avoids hotlink/referrer blocking and falls back to
+// the other link (hdurl <-> url) if the first one fails.
+function createImage(item) {
+  const image = document.createElement("img");
+
+  const primary = safeUrl(item.hdurl || item.url);
+  const backup = safeUrl(item.url && item.url !== item.hdurl ? item.url : "");
+
+  image.referrerPolicy = "no-referrer"; // don't send your site as the referrer
+  image.alt = cleanText(item.title);
+
+  image.onerror = () => {
+    console.error("Image failed to load:", image.src);
+
+    if (backup && image.src !== backup) {
+      image.src = backup; // try the backup link once
+    } else {
+      image.onerror = null; // stop, avoid an infinite loop
+    }
+  };
+
+  image.src = primary;
+
+  return image;
+}
+
 function dateDifference(startDate, endDate) {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -123,7 +154,6 @@ async function getSpaceImages() {
 }
 
 function displayGallery(images) {
-  console.log(images[0]);
   gallery.innerHTML = "";
 
   images.forEach(item => {
@@ -131,23 +161,7 @@ function displayGallery(images) {
     card.classList.add("gallery-item");
 
     if (item.media_type === "image") {
-      const image = document.createElement("img");
-
-      // Try hdurl first (it works with this endpoint), fall back to url if it fails
-      const primary = item.hdurl || item.url;
-      const backup = item.url && item.url !== primary ? item.url : null;
-
-      image.src = primary;
-      image.alt = cleanText(item.title);
-
-      if (backup) {
-        image.onerror = () => {
-          image.onerror = null; // avoid an infinite loop if the backup fails too
-          image.src = backup;
-        };
-      }
-
-      card.appendChild(image);
+      card.appendChild(createImage(item));
 
     } else {
       const videoPreview = document.createElement("div");
@@ -188,17 +202,12 @@ function openModal(item) {
   modalDetails.appendChild(date);
 
   if (item.media_type === "image") {
-    const image = document.createElement("img");
-
-    image.src = item.hdurl || item.url;
-    image.alt = cleanText(item.title);
-
-    modalDetails.appendChild(image);
+    modalDetails.appendChild(createImage(item));
 
   } else if (item.media_type === "video") {
     const iframe = document.createElement("iframe");
 
-    iframe.src = item.url;
+    iframe.src = safeUrl(item.url);
     iframe.title = cleanText(item.title);
     iframe.allowFullscreen = true;
 
@@ -206,7 +215,7 @@ function openModal(item) {
 
     // Some videos can't be embedded, so always offer a direct link too
     const link = document.createElement("a");
-    link.href = item.url;
+    link.href = safeUrl(item.url);
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.className = "video-link";
