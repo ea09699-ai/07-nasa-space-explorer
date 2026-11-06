@@ -123,6 +123,7 @@ async function getSpaceImages() {
 }
 
 function displayGallery(images) {
+  console.log(images[0]);
   gallery.innerHTML = "";
 
   images.forEach(item => {
